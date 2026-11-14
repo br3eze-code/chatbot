@@ -1,0 +1,6 @@
+{
+  "name": "Atelier",
+  "description": "Multi-model AI chat studio supporting Anthropic, DeepSeek, OpenAI, Google DeepMind, Moonshot, and custom API extensions with cloud sync, prompt library, plugins, and markdown rendering.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

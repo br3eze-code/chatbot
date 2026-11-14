@@ -1,0 +1,264 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isTimestampValid(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isValidProvider(p) {
+      return p in ['deepmind', 'anthropic', 'openai', 'deepseek', 'moonshot', 'custom'];
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             (!('email' in data) || data.email == null || (data.email is string && data.email.size() <= 120)) &&
+             (!('photoUrl' in data) || data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             data.themeMode in ['system', 'light', 'dark'] &&
+             isValidProvider(data.defaultProvider) &&
+             data.defaultModelId is string && data.defaultModelId.size() >= 1 && data.defaultModelId.size() <= 100 &&
+             data.defaultSystemPrompt is string && data.defaultSystemPrompt.size() <= 4000 &&
+             (data.temperature is int || data.temperature is float) && data.temperature >= 0 && data.temperature <= 2 &&
+             data.streamResponses is bool &&
+             data.syncEnabled is bool;
+    }
+
+    function isValidChatSession(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             isValidProvider(data.provider) &&
+             data.modelId is string && data.modelId.size() >= 1 && data.modelId.size() <= 100 &&
+             data.systemPrompt is string && data.systemPrompt.size() <= 4000 &&
+             data.lastMessagePreview is string && data.lastMessagePreview.size() <= 300 &&
+             data.messageCount is int && data.messageCount >= 0 &&
+             data.archived is bool &&
+             data.pinned is bool &&
+             data.activePluginIds is list && data.activePluginIds.size() <= 20 &&
+             (data.activePluginIds.size() == 0 || data.activePluginIds[0] is string);
+    }
+
+    function isValidChatMessage(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.chatId is string && data.chatId.size() >= 1 && data.chatId.size() <= 128 &&
+             data.role in ['user', 'assistant', 'system'] &&
+             data.content is string && data.content.size() >= 1 && data.content.size() <= 100000 &&
+             data.provider is string && data.provider.size() >= 1 && data.provider.size() <= 40 &&
+             data.modelId is string && data.modelId.size() >= 1 && data.modelId.size() <= 100 &&
+             data.tokenCountEstimate is int && data.tokenCountEstimate >= 0 &&
+             data.latencyMs is int && data.latencyMs >= 0 &&
+             data.isError is bool;
+    }
+
+    function isValidPromptTemplate(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             data.description is string && data.description.size() <= 300 &&
+             data.content is string && data.content.size() >= 1 && data.content.size() <= 10000 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 50 &&
+             data.tags is list && data.tags.size() <= 10 &&
+             (data.tags.size() == 0 || data.tags[0] is string) &&
+             data.isFavorite is bool &&
+             data.usageCount is int && data.usageCount >= 0;
+    }
+
+    function isValidApiPlugin(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+             data.description is string && data.description.size() <= 300 &&
+             data.kind in ['connector', 'custom_endpoint', 'tool'] &&
+             data.baseUrl is string && data.baseUrl.size() <= 500 &&
+             data.endpointPath is string && data.endpointPath.size() <= 200 &&
+             data.httpMethod in ['GET', 'POST'] &&
+             data.authHeaderName is string && data.authHeaderName.size() <= 80 &&
+             data.authScheme is string && data.authScheme.size() <= 40 &&
+             data.customModelId is string && data.customModelId.size() <= 100 &&
+             data.enabled is bool &&
+             data.requestTemplate is string && data.requestTemplate.size() <= 4000 &&
+             data.responseJsonPath is string && data.responseJsonPath.size() <= 120;
+    }
+
+    function isValidApiExecutionLog(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.chatId is string && data.chatId.size() <= 128 &&
+             data.provider is string && data.provider.size() >= 1 && data.provider.size() <= 40 &&
+             data.modelId is string && data.modelId.size() >= 1 && data.modelId.size() <= 100 &&
+             data.status in ['success', 'error'] &&
+             data.latencyMs is int && data.latencyMs >= 0 &&
+             data.summary is string && data.summary.size() <= 500;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == userId &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'themeMode', 'defaultProvider', 'defaultModelId', 'defaultSystemPrompt', 'temperature', 'streamResponses', 'syncEnabled', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'email', 'photoUrl', 'themeMode', 'defaultProvider', 'defaultModelId', 'defaultSystemPrompt', 'temperature', 'streamResponses', 'syncEnabled', 'createdAt', 'updatedAt']) &&
+                       isTimestampValid(incoming().createdAt) &&
+                       isTimestampValid(incoming().updatedAt) &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isTimestampValid(incoming().updatedAt) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'photoUrl', 'themeMode', 'defaultProvider', 'defaultModelId', 'defaultSystemPrompt', 'temperature', 'streamResponses', 'syncEnabled', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /chats/{chatId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(chatId);
+        allow list: if isOwner(userId) && isValidId(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidId(chatId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'title', 'provider', 'modelId', 'systemPrompt', 'lastMessagePreview', 'messageCount', 'archived', 'pinned', 'activePluginIds', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'provider', 'modelId', 'systemPrompt', 'lastMessagePreview', 'messageCount', 'archived', 'pinned', 'activePluginIds', 'createdAt', 'updatedAt']) &&
+                         isTimestampValid(incoming().createdAt) &&
+                         isTimestampValid(incoming().updatedAt) &&
+                         isValidChatSession(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidId(chatId) &&
+                         isValidChatSession(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isTimestampValid(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'provider', 'modelId', 'systemPrompt', 'lastMessagePreview', 'messageCount', 'archived', 'pinned', 'activePluginIds', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(chatId);
+
+        match /messages/{messageId} {
+          allow get: if isOwner(userId) && isValidId(userId) && isValidId(chatId) && isValidId(messageId);
+          allow list: if isOwner(userId) && isValidId(userId) && isValidId(chatId);
+
+          allow create: if isOwner(userId) &&
+                           isValidId(userId) &&
+                           isValidId(chatId) &&
+                           isValidId(messageId) &&
+                           existsAfter(/databases/$(database)/documents/users/$(userId)/chats/$(chatId)) &&
+                           incoming().userId == userId &&
+                           incoming().chatId == chatId &&
+                           incoming().keys().hasAll(['userId', 'chatId', 'role', 'content', 'provider', 'modelId', 'tokenCountEstimate', 'latencyMs', 'isError', 'createdAt']) &&
+                           incoming().keys().hasOnly(['userId', 'chatId', 'role', 'content', 'provider', 'modelId', 'tokenCountEstimate', 'latencyMs', 'isError', 'createdAt']) &&
+                           isTimestampValid(incoming().createdAt) &&
+                           isValidChatMessage(incoming());
+
+          allow update: if isOwner(userId) &&
+                           isValidId(userId) &&
+                           isValidId(chatId) &&
+                           isValidId(messageId) &&
+                           isValidChatMessage(incoming()) &&
+                           incoming().userId == existing().userId &&
+                           incoming().chatId == existing().chatId &&
+                           incoming().createdAt == existing().createdAt &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['content', 'tokenCountEstimate', 'latencyMs', 'isError']);
+
+          allow delete: if isOwner(userId) && isValidId(userId) && isValidId(chatId) && isValidId(messageId);
+        }
+      }
+
+      match /prompts/{promptId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(promptId);
+        allow list: if isOwner(userId) && isValidId(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidId(promptId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'title', 'description', 'content', 'category', 'tags', 'isFavorite', 'usageCount', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'description', 'content', 'category', 'tags', 'isFavorite', 'usageCount', 'createdAt', 'updatedAt']) &&
+                         isTimestampValid(incoming().createdAt) &&
+                         isTimestampValid(incoming().updatedAt) &&
+                         isValidPromptTemplate(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidId(promptId) &&
+                         isValidPromptTemplate(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isTimestampValid(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'content', 'category', 'tags', 'isFavorite', 'usageCount', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(promptId);
+      }
+
+      match /plugins/{pluginId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(pluginId);
+        allow list: if isOwner(userId) && isValidId(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidId(pluginId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'name', 'description', 'kind', 'baseUrl', 'endpointPath', 'httpMethod', 'authHeaderName', 'authScheme', 'customModelId', 'enabled', 'requestTemplate', 'responseJsonPath', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'name', 'description', 'kind', 'baseUrl', 'endpointPath', 'httpMethod', 'authHeaderName', 'authScheme', 'customModelId', 'enabled', 'requestTemplate', 'responseJsonPath', 'createdAt', 'updatedAt']) &&
+                         isTimestampValid(incoming().createdAt) &&
+                         isTimestampValid(incoming().updatedAt) &&
+                         isValidApiPlugin(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidId(pluginId) &&
+                         isValidApiPlugin(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isTimestampValid(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'kind', 'baseUrl', 'endpointPath', 'httpMethod', 'authHeaderName', 'authScheme', 'customModelId', 'enabled', 'requestTemplate', 'responseJsonPath', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(pluginId);
+      }
+
+      match /logs/{logId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(logId);
+        allow list: if isOwner(userId) && isValidId(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidId(logId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'chatId', 'provider', 'modelId', 'status', 'latencyMs', 'summary', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'chatId', 'provider', 'modelId', 'status', 'latencyMs', 'summary', 'createdAt']) &&
+                         isTimestampValid(incoming().createdAt) &&
+                         isValidApiExecutionLog(incoming());
+
+        allow update: if false;
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(logId);
+      }
+    }
+  }
+}

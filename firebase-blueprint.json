@@ -1,0 +1,146 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and synced studio preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Authenticated Firebase UID" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "email": { "type": "string", "description": "User email address" },
+        "photoUrl": { "type": "string", "description": "Profile avatar URL" },
+        "themeMode": { "type": "string", "enum": ["system", "light", "dark"] },
+        "defaultProvider": { "type": "string", "enum": ["deepmind", "anthropic", "openai", "deepseek", "moonshot", "custom"] },
+        "defaultModelId": { "type": "string", "description": "Default model identifier" },
+        "defaultSystemPrompt": { "type": "string", "description": "Global system instructions" },
+        "temperature": { "type": "number", "description": "Sampling temperature 0.0 to 2.0" },
+        "streamResponses": { "type": "boolean", "description": "Whether responses stream incrementally" },
+        "syncEnabled": { "type": "boolean", "description": "Cross-platform cloud sync toggle" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp" }
+      },
+      "required": ["userId", "displayName", "themeMode", "defaultProvider", "defaultModelId", "defaultSystemPrompt", "temperature", "streamResponses", "syncEnabled", "createdAt", "updatedAt"]
+    },
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "Synced conversation thread metadata",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "provider": { "type": "string", "enum": ["deepmind", "anthropic", "openai", "deepseek", "moonshot", "custom"] },
+        "modelId": { "type": "string" },
+        "systemPrompt": { "type": "string" },
+        "lastMessagePreview": { "type": "string" },
+        "messageCount": { "type": "integer" },
+        "archived": { "type": "boolean" },
+        "pinned": { "type": "boolean" },
+        "activePluginIds": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "provider", "modelId", "systemPrompt", "lastMessagePreview", "messageCount", "archived", "pinned", "activePluginIds", "createdAt", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Individual markdown message in a conversation",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "chatId": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "assistant", "system"] },
+        "content": { "type": "string" },
+        "provider": { "type": "string" },
+        "modelId": { "type": "string" },
+        "tokenCountEstimate": { "type": "integer" },
+        "latencyMs": { "type": "integer" },
+        "isError": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "chatId", "role", "content", "provider", "modelId", "tokenCountEstimate", "latencyMs", "isError", "createdAt"]
+    },
+    "PromptTemplate": {
+      "title": "PromptTemplate",
+      "description": "Reusable prompt template in the user's prompt library",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "tags": { "type": "array" },
+        "isFavorite": { "type": "boolean" },
+        "usageCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "description", "content", "category", "tags", "isFavorite", "usageCount", "createdAt", "updatedAt"]
+    },
+    "ApiPlugin": {
+      "title": "ApiPlugin",
+      "description": "Configurable connector or custom API extension",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "kind": { "type": "string", "enum": ["connector", "custom_endpoint", "tool"] },
+        "baseUrl": { "type": "string" },
+        "endpointPath": { "type": "string" },
+        "httpMethod": { "type": "string", "enum": ["GET", "POST"] },
+        "authHeaderName": { "type": "string" },
+        "authScheme": { "type": "string" },
+        "customModelId": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "requestTemplate": { "type": "string" },
+        "responseJsonPath": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "description", "kind", "baseUrl", "endpointPath", "httpMethod", "authHeaderName", "authScheme", "customModelId", "enabled", "requestTemplate", "responseJsonPath", "createdAt", "updatedAt"]
+    },
+    "ApiExecutionLog": {
+      "title": "ApiExecutionLog",
+      "description": "Searchable and exportable API interaction log",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "chatId": { "type": "string" },
+        "provider": { "type": "string" },
+        "modelId": { "type": "string" },
+        "status": { "type": "string", "enum": ["success", "error"] },
+        "latencyMs": { "type": "integer" },
+        "summary": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "chatId", "provider", "modelId", "status", "latencyMs", "summary", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Authenticated user profile and synced preferences"
+    },
+    "/users/{userId}/chats/{chatId}": {
+      "schema": { "$ref": "#/entities/ChatSession" },
+      "description": "User-owned chat sessions and archive"
+    },
+    "/users/{userId}/chats/{chatId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Messages belonging to a user-owned chat session"
+    },
+    "/users/{userId}/prompts/{promptId}": {
+      "schema": { "$ref": "#/entities/PromptTemplate" },
+      "description": "User-owned prompt library templates"
+    },
+    "/users/{userId}/plugins/{pluginId}": {
+      "schema": { "$ref": "#/entities/ApiPlugin" },
+      "description": "User-owned plugins, connectors, and custom API integrations"
+    },
+    "/users/{userId}/logs/{logId}": {
+      "schema": { "$ref": "#/entities/ApiExecutionLog" },
+      "description": "User-owned API execution logs for export and audit"
+    }
+  }
+}
